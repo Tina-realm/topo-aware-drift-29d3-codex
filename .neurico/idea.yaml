@@ -1,0 +1,252 @@
+idea:
+  title: Topology-Aware Streaming Drift Detection for Hard Text Embedding Shifts
+  domain: machine_learning
+  problem_statement: 'Existing results show that simple centroid, covariance, and
+    MMD detectors are near-perfect on coarse AG NEWS topic shifts, while persistent-homology
+    features help mainly on a synthetic topology-only drift. This suggests a sharper
+    research question: can topology-aware detectors provide reliable incremental value
+    on realistic embedding shifts that preserve or mask low-order statistics, under
+    calibrated online detection constraints?
+
+    '
+  hypothesis: 'TDA is most useful as a complementary detector for geometry-preserving
+    or centroid-preserving reorganizations in embedding streams. Its value will be
+    clearest when experiments control first- and second-order statistics, evaluate
+    harder within-topic and cross-source shifts, and compare against stronger geometry-aware
+    non-TDA baselines in a true streaming protocol.
+
+    '
+  motivation_from_review:
+    strengths_to_preserve:
+    - Keep the balanced claim that TDA complements rather than replaces classical
+      drift detectors.
+    - Retain the centroid-preserving topology-only experiment as an isolating test
+      of H1 sensitivity.
+    - 'Keep practical deployment metrics: AUC, delay, FPR, and runtime per window.'
+    gaps_to_address:
+    - Resolve inconsistent FPR calibration, AUC values, method labels, and runtime
+      accounting.
+    - Move beyond one dataset and one embedding model.
+    - Add harder realistic drifts where topic labels or coarse centroids do not trivially
+      separate windows.
+    - Replace or supplement separability ratios with AUC, power, Type I/II error,
+      and permutation tests.
+    - Add ablations for window size, PH subsample size, PCA dimension, filtration
+      choice, and kNN parameters.
+    - Compare against stronger non-TDA baselines such as energy distance and classifier-based
+      two-sample tests.
+    - Evaluate online thresholding and adaptive references using streaming change
+      detection methods.
+  research_questions:
+  - id: rq1
+    question: When low-order moments are matched, do TDA features detect text embedding
+      drift missed by classical and geometry-aware non-TDA baselines?
+  - id: rq2
+    question: How sensitive are TDA drift signals to PCA dimension, subsample size,
+      window size, and filtration construction?
+  - id: rq3
+    question: Can TDA features be made stable enough for online monitoring with calibrated
+      false positive rates?
+  - id: rq4
+    question: What is the true end-to-end runtime cost of TDA detectors when diagram
+      computation is included?
+  methodology:
+    study_design: Controlled benchmark plus online streaming evaluation
+    datasets:
+    - name: AG NEWS hard splits
+      purpose: Retain continuity with the original paper while adding within-class
+        and subtopic reweighting shifts.
+      drift_types:
+      - within-topic temporal or source-style drift
+      - subtopic mixture reweighting with approximately matched centroid and covariance
+      - class-balanced topic drift to reduce trivial separability
+    - name: Cross-source news and web text
+      purpose: Evaluate domain and style shifts with matched topics.
+      candidates:
+      - newswire vs blogs
+      - news vs social-style summaries
+      - matched-topic multi-domain sentence corpora
+    - name: Synthetic controlled manifolds in embedding space
+      purpose: Isolate topological effects under exact or near-exact moment matching.
+      drift_types:
+      - loop formation with centroid and covariance matching
+      - cluster splitting with matched mean
+      - annulus-to-mixture transformations
+      - null controls with resampling only
+    embedding_models:
+    - all-MiniLM-L6-v2
+    - BERT-base pooled embeddings
+    - E5-small or BGE-small sentence embeddings
+    - optional multilingual encoder for lower-separability stress tests
+    preprocessing_ablations:
+    - raw normalized embeddings
+    - PCA to 20, 50, and 100 dimensions
+    - isotropy correction or all-but-the-top postprocessing
+    - cosine versus Euclidean geometry where applicable
+  detectors:
+    classical_baselines:
+    - centroid distance
+    - covariance or Frechet-style distance
+    - RBF MMD with median heuristic and bandwidth sweep
+    - kNN two-sample distance with tuned k and cosine/Euclidean metrics
+    stronger_non_tda_baselines:
+    - energy distance
+    - classifier-based two-sample test/domain discriminator
+    - linear and random-forest discriminators with held-out calibration
+    - streaming MMD variant
+    - ADWIN, Page-Hinkley, or CUSUM applied to detector score streams
+    tda_methods:
+    - persistence entropy for H0 and H1
+    - Wasserstein and sliced Wasserstein distances on persistence diagrams
+    - Betti curves and Betti curve distances
+    - persistence landscapes or silhouettes
+    - persistence Fisher or diagram-kernel variants if compute allows
+    tda_filtrations:
+    - Vietoris-Rips on PCA-reduced embeddings
+    - witness complexes with landmark subsampling
+    - optional alpha complexes for low-dimensional synthetic controls
+  experimental_protocol:
+    calibration:
+      reference_windows: 20
+      thresholding:
+      - Use a dedicated no-drift calibration stream to set the nominal 95th percentile
+        threshold.
+      - Report realized FPR on disjoint no-drift test windows, not on the calibration
+        windows.
+      - Report confidence intervals for realized FPR and explain deviations from the
+        nominal 5 percent target.
+    streaming_setup:
+    - Use sliding or tumbling windows with sizes 50, 100, 200, and 400.
+    - Evaluate fixed reference windows and adaptive references.
+    - Measure delay from the known drift onset to the first sustained alarm.
+    - Use CUSUM/Page-Hinkley/ADWIN wrappers to contextualize delay/FPR tradeoffs.
+    ablations:
+      window_size:
+      - 50
+      - 100
+      - 200
+      - 400
+      ph_subsample_size:
+      - 40
+      - 80
+      - 160
+      pca_dimensions:
+      - 20
+      - 50
+      - 100
+      knn_k:
+      - 5
+      - 10
+      - 20
+      - 50
+      seeds: 10
+    statistical_testing:
+    - Report AUC with mean, standard deviation, and bootstrap confidence intervals.
+    - For synthetic topology-only shifts, report permutation-test p-values and power
+      curves.
+    - Report Type I and Type II error at fixed calibrated thresholds.
+    - Use paired tests across seeds or streams when comparing detectors.
+  metrics:
+    primary:
+    - ROC AUC
+    - realized false positive rate on held-out no-drift windows
+    - detection delay
+    - Type I error
+    - Type II error
+    - test power under controlled drift magnitude
+    secondary:
+    - score variance across seeds
+    - stability under subsampling
+    - runtime per window including all preprocessing and diagram computation
+    - memory usage
+    - calibration error between nominal and realized FPR
+  runtime_accounting:
+    principle: Report end-to-end wall-clock cost for each detector.
+    required_components:
+    - embedding lookup or encoding cost, if performed during the experiment
+    - PCA or isotropy preprocessing
+    - subsampling or landmark selection
+    - persistence diagram computation
+    - feature extraction or diagram distance computation
+    - thresholding and online wrapper overhead
+    reporting:
+    - Separate feature-only time from end-to-end time.
+    - State CPU/GPU hardware, library versions, thread count, and whether timings
+      are warm-started.
+    - Use the same timing protocol across classical and TDA methods.
+  expected_contributions:
+  - A harder benchmark for topology-aware drift detection in text embedding streams.
+  - A calibrated comparison of TDA, classical statistics, energy distance, domain
+    discriminators, and online detectors.
+  - Evidence for when TDA adds value beyond low-order and kernel statistics.
+  - Sensitivity analysis showing the stability and cost tradeoffs of persistent homology
+    in high-dimensional embeddings.
+  - A corrected reporting template for FPR, delay, AUC, and runtime in streaming embedding
+    drift papers.
+  expected_outputs:
+  - type: results_table
+    format: csv
+    description: Unified per-scenario metrics with mean, standard deviation, and confidence
+      intervals across seeds.
+  - type: runtime_table
+    format: csv
+    description: End-to-end and feature-only runtime broken down by pipeline component.
+  - type: window_scores
+    format: jsonl
+    description: Per-window detector scores, thresholds, alarms, drift labels, and
+      metadata.
+  - type: figures
+    format: png/pdf
+    description: AUC by scenario, delay-FPR curves, calibration plots, ablation heatmaps,
+      and example persistence summaries.
+  - type: report
+    format: latex/markdown
+    description: Paper-ready revision plan and experimental analysis addressing the
+      review concerns.
+  success_criteria:
+  - All reported AUC, FPR, delay, and runtime values are internally consistent across
+    tables and figures.
+  - Realized FPR is computed on held-out no-drift windows and reported separately
+    from the nominal calibration target.
+  - At least two hard realistic drift scenarios approximately preserve centroid or
+    covariance.
+  - TDA is compared with energy distance and at least one classifier-based two-sample
+    detector.
+  - TDA ablations cover window size, subsample size, and PCA dimension.
+  - Synthetic topology-only experiments report AUC and permutation-test power, not
+    only separability ratios.
+  - End-to-end Wasserstein and persistence-entropy runtimes include diagram computation.
+  - The final claims clearly distinguish coarse topic drift, hard moment-preserving
+    drift, and synthetic topology-only drift.
+  risks_and_mitigations:
+  - risk: TDA remains weaker than stronger non-TDA baselines on realistic shifts.
+    mitigation: Frame the contribution as a boundary-setting benchmark and analyze
+      the rare regimes where topology helps.
+  - risk: Persistent homology is too noisy under small windows.
+    mitigation: Use bagging over subsamples, persistence landscapes/silhouettes, and
+      stability CIs.
+  - risk: Runtime becomes impractical for online use.
+    mitigation: Benchmark witness complexes, PCA reduction, and scheduled second-tier
+      TDA evaluation rather than every-window PH.
+  - risk: Moment-preserving real text drifts are difficult to construct.
+    mitigation: Use optimization-based reweighting over candidate samples to match
+      centroid and covariance approximately.
+  metadata:
+    author: tina
+    source: review-driven revision of topo-drift-llm-embeds
+    priority: high
+    estimated_duration: 2-4 weeks
+    tags:
+    - topological-data-analysis
+    - persistent-homology
+    - embedding-drift
+    - streaming-change-detection
+    - llm-monitoring
+    - two-sample-testing
+    - calibration
+    - runtime-accounting
+    idea_id: topology_aware_streaming_drift_20260505_095215_91e185f9
+    created_at: '2026-05-05T09:52:15.479643'
+    status: submitted
+    github_repo_name: topo-aware-drift-29d3-codex
+    github_repo_url: https://github.com/Tina-realm/topo-aware-drift-29d3-codex
